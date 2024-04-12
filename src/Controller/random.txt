@@ -1,0 +1,91 @@
+<?php
+
+namespace App\Controller;
+
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\Routing\Annotation\Route;
+use Psr\Log\LoggerInterface;
+use Symfony\Component\Process\Process;
+use Symfony\Component\Process\Exception\ProcessFailedException;
+
+class AnalyseurController extends AbstractController
+{
+    private $urlQueue = [];
+    private $allurls = [];
+    private $activeWorkers = [];
+    private const MAX_WORKERS = 5;
+
+    #[Route('/start_worker', name: 'start_worker', methods: ['POST'])]
+    public function startWorker(Request $request, LoggerInterface $logger): Response
+    {
+        $url = $request->request->get('url');
+        $depth = (int) $request->request->get('depth', 1);
+
+        if (!$url) {
+            return $this->json(['message' => 'No URL provided'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $this->enqueueUrl($url, $depth);
+        $this->manageWorkers($logger);
+
+        return $this->json(['message' => "Analysis initiated for $url with depth $depth.", 'all_urls' => $this->allurls]);
+    }
+
+    #[Route('/resultat', name: 'analyse_resultat', methods: ['POST'])]
+    public function resultat(Request $request, LoggerInterface $logger): Response
+    {
+        $data = json_decode($request->getContent(), true);
+        $url = $data['url'] ?? null;
+        $links = $data['links'] ?? [];
+        $depth = $data['depth'] ?? 0;
+
+        $logger->info("Received analysis results for $url");
+
+        if ($url && $depth > 0) {
+            foreach ($links as $link) {
+                if (!in_array($link, array_column($this->urlQueue, 0))) {
+                    $this->enqueueUrl($link, $depth - 1);
+                }
+            }
+        }
+
+        $this->manageWorkers($logger);
+
+        return new Response("Processed result for $url", Response::HTTP_OK);
+    }
+
+    private function enqueueUrl($url, $depth)
+    {
+        $this->urlQueue[] = [$url, $depth];
+        $this->allurls[] = [$url, $depth];
+    }
+
+    private function launchWorker($url, $depth, LoggerInterface $logger)
+    {
+        $command = "docker run --network=host php-url-analyser " . escapeshellarg($url) . " " . escapeshellarg($depth);
+        $process = new Process(explode(' ', $command));
+        $process->start();
+
+        $this->activeWorkers[] = ['process' => $process, 'url' => $url, 'depth' => $depth];
+        $logger->info("Docker started for URL: $url with depth $depth");
+    }
+
+    private function manageWorkers(LoggerInterface $logger)
+    {
+        // Clean up completed workers and launch new ones if below capacity
+        foreach ($this->activeWorkers as $key => $worker) {
+            if (!$worker['process']->isRunning()) {
+                unset($this->activeWorkers[$key]); // Remove finished worker
+                $logger->info("Worker completed for URL: " . $worker['url']);
+            }
+        }
+    
+        while (count($this->activeWorkers) < self::MAX_WORKERS && !empty($this->urlQueue)) {
+            [$url, $depth] = array_shift($this->urlQueue);
+            $this->launchWorker($url, $depth, $logger);
+        }
+    }
+    
+}
