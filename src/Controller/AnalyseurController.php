@@ -62,7 +62,7 @@ class AnalyseurController extends AbstractController
             // Remove links that have been handed off to workers
             $remaining_links = array_slice($links, 5);
             $analyse->setLinksToAnalyse($remaining_links);
-            $analyse->setDepth($depth);
+            $analyse->setDepth($depth - 1);
             $em->flush();
         }
     }
