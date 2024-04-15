@@ -95,7 +95,9 @@ class AnalyseurController extends AbstractController
         $analyse->setLinksToAnalyse($updated_links_to_analyse);
         $analyse->setLinksFound($updated_found_links);
         $analyse->setImagesNbr($content['resultats']['images_nbr'] ?? 0); // You might also want to accumulate this
-        $analyse->setTotalTime(new \DateTime('@' . ($content['resultats']['load_time'] ?? 0))); // Adjust according to how you calculate total time
+        $total_time = $analyse->getTotalTime() + $content['resultats']['load_time'];
+
+        $analyse->setTotalTime(new \DateTime('@' . ($total_time ?? 0))); // Adjust according to how you calculate total time
     
         // Check if more links to process or if depth limit reached
         if ($analyse->getDepth() > 0 && count($updated_links_to_analyse) > 0) {
