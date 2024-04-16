@@ -64,16 +64,16 @@ function getLinks($url) {
     $hrefValue = $href->getAttribute('href');
     // Vérifier si le lien est complet
     if (filter_var($hrefValue, FILTER_VALIDATE_URL)) {
-    $hrefDomain = parse_url($hrefValue, PHP_URL_HOST);
-    if ($base == $hrefDomain) {
-    $internalLinks[] = $hrefValue; // Lien interne
+        $hrefDomain = parse_url($hrefValue, PHP_URL_HOST);
+        if (strpos($hrefDomain,$base) !== false) {
+            $internalLinks[] = $hrefValue; // Lien interne
+        } else {
+            $externalLinks[] = $hrefValue; // Lien externe
+        }
     } else {
-    $externalLinks[] = $hrefValue; // Lien externe
-    }
-    } else {
-    // Ajouter le domaine si le lien est relatif
-    $internalLinks[] = $url . '/' . ltrim($hrefValue, '/');
-    }
+        // Ajouter le domaine si le lien est relatif
+            $internalLinks[] = $url . '/' . ltrim($hrefValue, '/');
+        }
     }
      
     $srcs = $xpath->query("//img[@src]");
