@@ -36,9 +36,13 @@ function get_url_info($url) {
         file_get_contents_curl($url); // Cela remplit le cache si ce n'est pas déjà fait
     }
     $info = $cache[$url]['info'];
+
+    $path = parse_url($url, PHP_URL_PATH);
+    $depth = $path == NULL ? 0 : count(array_filter(explode('/', $path), function($value) { return $value !== ''; }));
     return [
         'http_status' => $info['http_code'],
         'load_time' => $info['total_time'] * 1000, // Temps de chargement en millisecondes
+        'depth' => $depth,
     ];
 }
 
@@ -48,21 +52,40 @@ function getLinks($url) {
     $dom = new DOMDocument();
     @$dom->loadHTML($urlContent);
     $xpath = new DOMXPath($dom);
-
-    $links = [];
+     
+    $base = parse_url($url, PHP_URL_HOST); // Récupérer le domaine de l'URL de base
+     
+    $internalLinks = [];
+    $externalLinks = [];
     $images = [];
-
-    $hrefs = $xpath->query("//a");
+     
+    $hrefs = $xpath->query("//a[@href]");
     foreach ($hrefs as $href) {
-        $links[] = $href->getAttribute('href');
+    $hrefValue = $href->getAttribute('href');
+    // Vérifier si le lien est complet
+    if (filter_var($hrefValue, FILTER_VALIDATE_URL)) {
+    $hrefDomain = parse_url($hrefValue, PHP_URL_HOST);
+    if ($base == $hrefDomain) {
+    $internalLinks[] = $hrefValue; // Lien interne
+    } else {
+    $externalLinks[] = $hrefValue; // Lien externe
     }
-
-    $srcs = $xpath->query("//img");
+    } else {
+    // Ajouter le domaine si le lien est relatif
+    $internalLinks[] = $url . '/' . ltrim($hrefValue, '/');
+    }
+    }
+     
+    $srcs = $xpath->query("//img[@src]");
     foreach ($srcs as $src) {
-        $images[] = $src->getAttribute('src');
+    $images[] = $src->getAttribute('src');
     }
-
-    return ['links' => array_unique($links), 'images' => array_unique($images)];
+     
+    return [
+    'internalLinks' => array_unique($internalLinks),
+    'externalLinks' => array_unique($externalLinks),
+    'images' => array_unique($images)
+    ];
 }
 
 // Fonction pour analyser une URL sans profondeur
@@ -72,9 +95,11 @@ function depth_zero($url) {
 	
     return [
         'url' => $url,
+        'depth' => $info['depth'],
         'http_status' => $info['http_status'],
         'load_time' => $info['load_time'],
-        'links' => $linksImages['links'],
+        'internalLinks' => $linksImages['internalLinks'],
+        'externalLinks' => $linksImages['externalLinks'],
         'images' => $linksImages['images'],
     ];
 }
