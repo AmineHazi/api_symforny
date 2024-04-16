@@ -58,11 +58,16 @@ class AnalyseurController extends AbstractController
                 $command = "docker run --network=host php-url-analyser " . escapeshellarg($link) . " > /dev/null 2>&1 &";
                 shell_exec($command);
                 $workers_running++;
+
+                // Add the link to the analysed links
+                $analysed_links = $analyse->getAnalysedLinks();
+
+                $analyse->setAnalysedLinks(array_merge($analysed_links, [$link]));
                 $analyse->setDockerNb($workers_running);
             }
 
             // Remove links that have been handed off to workers
-            $remaining_links = array_slice($links, 5);
+            $remaining_links = array_slice($links, 5 - $workers_running);
             $analyse->setLinksToAnalyse($remaining_links);
             $em->flush();
         }
@@ -115,9 +120,13 @@ class AnalyseurController extends AbstractController
         // récupère les liens à analyser de la bdd
         $to_be_analysed_links = $analyse->getLinksToAnalyse();
         
-        $links_found_to_be_analysed = array_intersect($all_found_links, $new_links);
+        // récupère les liens déja analyser depuis la bdd
+        $analysed_links = $analyse->getAnalysedLinks();
 
-        $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $new_links));
+        // garder que les liens qui n''ont pas été analysé 
+        $links_found_to_be_analysed = array_diff($new_links, $analysed_links);
+
+        $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $links_found_to_be_analysed));
 
 
         $logger->error($current_depth);
@@ -126,7 +135,7 @@ class AnalyseurController extends AbstractController
             
             // Accumulate links and other results
             
-            $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $new_links));
+            $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $links_found_to_be_analysed));
             $analyse->setLinksToAnalyse($updated_links_to_analyse);
         }
         

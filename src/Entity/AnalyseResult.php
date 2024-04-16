@@ -35,6 +35,11 @@ class AnalyseResult
     #[ORM\Column(type: Types::ARRAY, nullable: true)]
     private ?array $links_to_analyse = [];
 
+
+    #[ORM\Column(type: Types::ARRAY, nullable: true)]
+    private ?array $analysed_links = [];
+
+
     #[ORM\Column(type: Types::INTEGER)]
     private ?int $depth = 0;
 
@@ -148,6 +153,18 @@ class AnalyseResult
     public function setDockerNb(int $dockerNb): self
     {
         $this->dockerNb = $dockerNb;
+        return $this;
+    }
+
+    public function getAnalysedLinks(): ?array
+    {
+        return $this->analysed_links;
+    }
+
+    public function setAnalysedLinks(?array $analysed_links): static
+    {
+        $this->analysed_links = $analysed_links;
+
         return $this;
     }
 }
