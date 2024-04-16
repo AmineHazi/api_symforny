@@ -35,6 +35,7 @@ class AnalyseurController extends AbstractController
         $analyse->setUrl($url);
         $analyse->setDepth($depth);
         $analyse->setAnalyseEnCours(true);
+        $analyse->setDockerNb(0);
         $analyse->setLinksToAnalyse([$url]); // Initialisation avec le premier lien
         $analyse->setLinksNbr(0); // Default value if not set yet
         $analyse->setImagesNbr(0); // Default value
@@ -50,19 +51,19 @@ class AnalyseurController extends AbstractController
     private function launchWorkers(AnalyseResult $analyse, EntityManagerInterface $em)
     {
         $links = $analyse->getLinksToAnalyse();
-        $depth = $analyse->getDepth();
-
-        if ($depth > 0 && count($links) > 0) {
+        $workers_running = $analyse->getDockerNb();
+        if (count($links) > 0 && $workers_running < 5) {
             // Launch up to 5 workers simultaneously
-            foreach (array_slice($links, 0, 5) as $link) {
+            foreach (array_slice($links, 0, 5 - $workers_running) as $link) {
                 $command = "docker run --network=host php-url-analyser " . escapeshellarg($link) . " > /dev/null 2>&1 &";
                 shell_exec($command);
+                $workers_running++;
+                $analyse->setDockerNb($workers_running);
             }
 
             // Remove links that have been handed off to workers
             $remaining_links = array_slice($links, 5);
             $analyse->setLinksToAnalyse($remaining_links);
-            $analyse->setDepth($depth - 1);
             $em->flush();
         }
     }
@@ -83,24 +84,37 @@ class AnalyseurController extends AbstractController
             $logger->error("No ongoing analysis found for the URL: {$url_analysed}.");
             return new Response("No ongoing analysis found.", Response::HTTP_BAD_REQUEST);
         }
+        $workers_running = $analyse->getDockerNb();
+        $analyse->setDockerNb($workers_running - 1);
+        $current_depth = $content['resultats']['depth'];
     
-        // Accumulate links and other results
-        $new_links = $content['resultats']['links'] ?? [];
-        $existing_links = $analyse->getLinksToAnalyse();
+        $new_links = $content['resultats']['internalLinks'] ?? [];
         $all_found_links = $analyse->getLinksFound() ?? [];
-    
-        $updated_links_to_analyse = array_unique(array_merge($existing_links, $new_links));
         $updated_found_links = array_unique(array_merge($all_found_links, $new_links));
-    
-        $analyse->setLinksToAnalyse($updated_links_to_analyse);
         $analyse->setLinksFound($updated_found_links);
-        $analyse->setImagesNbr($content['resultats']['images_nbr'] ?? 0); // You might also want to accumulate this
-        $total_time = $analyse->getTotalTime() + $content['resultats']['load_time'];
+        $total_images = $analyse->getImagesNbr();
+        $analyse->setImagesNbr(($total_images+count($content['resultats']['images'])) ?? 0); // You might also want to accumulate this
+        $totalTime = $analyse->getTotalTime()->getTimestamp() + ($content['resultats']['load_time']/1000) ?? 0;
+        $analyse->setTotalTime(new \DateTime('@' . $totalTime));
+        $existing_links = $analyse->getLinksToAnalyse();
+        $updated_links_to_analyse = array_unique(array_merge($existing_links, $new_links));
 
-        $analyse->setTotalTime(new \DateTime('@' . ($total_time ?? 0))); // Adjust according to how you calculate total time
-    
+
+        $logger->error($current_depth);
+        $logger->error($analyse->getDepth());
+        if($current_depth < $analyse->getDepth()){
+            
+            // Accumulate links and other results
+            
+            $updated_links_to_analyse = array_unique(array_merge($existing_links, $new_links));
+            $analyse->setLinksToAnalyse($updated_links_to_analyse);
+        }
+        
+        
+
+
         // Check if more links to process or if depth limit reached
-        if ($analyse->getDepth() > 0 && count($updated_links_to_analyse) > 0) {
+        if (count($updated_links_to_analyse) > 0) {
             $this->launchWorkers($analyse, $em);
         } else {
             $analyse->setAnalyseEnCours(false);
@@ -124,7 +138,7 @@ class AnalyseurController extends AbstractController
     
         $result = [
             'url' => $analyse->getUrl(),
-            'links_nbr' => $analyse->getLinksNbr(),
+            'links_nbr' => count($analyse->getLinksFound()),
             'links_found' => $analyse->getLinksFound(),
             'images_nbr' => $analyse->getImagesNbr(),
             'total_time' => $analyse->getTotalTime()->format('H:i:s'),
@@ -134,6 +148,9 @@ class AnalyseurController extends AbstractController
         // Supprimer l'enregistrement de la base de données
         $em->remove($analyse);
         $em->flush();
+
+        $command = "docker rm $(docker ps -aq) > /dev/null 2>&1 &";
+        shell_exec($command);
 
         return $this->json($result);
     }

@@ -38,6 +38,9 @@ class AnalyseResult
     #[ORM\Column(type: Types::INTEGER)]
     private ?int $depth = 0;
 
+    #[ORM\Column(type: Types::INTEGER, nullable: true)]
+    private ?int $dockerNb = 0;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -134,6 +137,17 @@ class AnalyseResult
     public function setDepth(int $depth): self
     {
         $this->depth = $depth;
+        return $this;
+    }
+
+    public function getDockerNb(): ?int
+    {
+        return $this->dockerNb;
+    }
+
+    public function setDockerNb(int $dockerNb): self
+    {
+        $this->dockerNb = $dockerNb;
         return $this;
     }
 }
