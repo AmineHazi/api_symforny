@@ -84,20 +84,40 @@ class AnalyseurController extends AbstractController
             $logger->error("No ongoing analysis found for the URL: {$url_analysed}.");
             return new Response("No ongoing analysis found.", Response::HTTP_BAD_REQUEST);
         }
+        //récupérer le nombre de workers en cours
         $workers_running = $analyse->getDockerNb();
+
+        // décrementer le nombre de workers en cours
         $analyse->setDockerNb($workers_running - 1);
+
+        // récupère la prof du lien analysé 
         $current_depth = $content['resultats']['depth'];
     
+        // les liens internes trouvés dans la page
         $new_links = $content['resultats']['internalLinks'] ?? [];
+
+        // Recupère de la bdd les liens déjà trouvés (TOUS LES LIENS)
         $all_found_links = $analyse->getLinksFound() ?? [];
+
+        // on rajoute les liens trouver au liens déjà existant dans la bdd
         $updated_found_links = array_unique(array_merge($all_found_links, $new_links));
         $analyse->setLinksFound($updated_found_links);
+        
+        // récupérer les images et additionner les nouvelles imgs trouvées
         $total_images = $analyse->getImagesNbr();
-        $analyse->setImagesNbr(($total_images+count($content['resultats']['images'])) ?? 0); // You might also want to accumulate this
+        $analyse->setImagesNbr(($total_images+count($content['resultats']['images'])) ?? $total_images); // You might also want to accumulate this
+        
+        // récupérer le temps total et additionner le temps de chargement de la page
+        // FAUSSE À REGLER
         $totalTime = $analyse->getTotalTime()->getTimestamp() + ($content['resultats']['load_time']/1000) ?? 0;
         $analyse->setTotalTime(new \DateTime('@' . $totalTime));
-        $existing_links = $analyse->getLinksToAnalyse();
-        $updated_links_to_analyse = array_unique(array_merge($existing_links, $new_links));
+        
+        // récupère les liens à analyser de la bdd
+        $to_be_analysed_links = $analyse->getLinksToAnalyse();
+        
+        $links_found_to_be_analysed = array_intersect($all_found_links, $new_links);
+
+        $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $new_links));
 
 
         $logger->error($current_depth);
@@ -106,7 +126,7 @@ class AnalyseurController extends AbstractController
             
             // Accumulate links and other results
             
-            $updated_links_to_analyse = array_unique(array_merge($existing_links, $new_links));
+            $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $new_links));
             $analyse->setLinksToAnalyse($updated_links_to_analyse);
         }
         
