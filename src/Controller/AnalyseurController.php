@@ -61,12 +61,12 @@ class AnalyseurController extends AbstractController
 
                 // Add the link to the analysed links
                 $analysed_links = $analyse->getAnalysedLinks();
-
                 $analyse->setAnalysedLinks(array_merge($analysed_links, [$link]));
                 $analyse->setDockerNb($workers_running);
             }
-
-            // Remove links that have been handed off to workers
+            
+            $analyse->setLinksToAnalyse($links);
+            // // Remove links that have been handed off to workers
             $remaining_links = array_slice($links, 5 - $workers_running);
             $analyse->setLinksToAnalyse($remaining_links);
             $em->flush();
@@ -100,7 +100,7 @@ class AnalyseurController extends AbstractController
     
         // les liens internes trouvés dans la page
         $new_links = $content['resultats']['internalLinks'] ?? [];
-
+        $logger->error(implode(", ", $new_links));
         // Recupère de la bdd les liens déjà trouvés (TOUS LES LIENS)
         $all_found_links = $analyse->getLinksFound() ?? [];
 
@@ -124,14 +124,21 @@ class AnalyseurController extends AbstractController
         $analysed_links = $analyse->getAnalysedLinks();
 
         // garder que les liens qui n''ont pas été analysé 
-        $links_found_to_be_analysed = array_diff($new_links, $analysed_links);
+        $links_found_to_be_analysed = array();
 
-        $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $links_found_to_be_analysed));
+        foreach ($new_links as $string) {
+            // Check if the string is not present in to_be_analysed_links
+            if (!in_array($string, $analysed_links)) {
+                // Add the string to array1
+                $links_found_to_be_analysed[] = $string;
+            }
+        }
+
 
 
         $logger->error($current_depth);
         $logger->error($analyse->getDepth());
-        if($current_depth < $analyse->getDepth()){
+        if($current_depth <= $analyse->getDepth()){
             
             // Accumulate links and other results
             
