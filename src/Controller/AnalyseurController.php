@@ -24,6 +24,17 @@ class AnalyseurController extends AbstractController
     #[Route('/start_worker', name: 'start_worker', methods: ['POST'])]
     public function startWorker(Request $request, LoggerInterface $logger, EntityManagerInterface $em): Response
     {
+        if ($request->getMethod() === 'OPTIONS') {
+            // Set CORS headers
+            $response = new Response();
+            $response->headers->set('Access-Control-Allow-Origin', '*');
+            $response->headers->set('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
+            $response->headers->set('Access-Control-Allow-Headers', 'Content-Type');
+            $response->headers->set('Access-Control-Allow-Credentials', 'true');
+            $response->headers->set('Access-Control-Max-Age', '3600');
+        }
+
+
         $data = json_decode($request->getContent(), true);
         $url = $this->add_http($request->request->get('url'));
         if (!$url) {
