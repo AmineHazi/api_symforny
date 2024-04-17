@@ -15,6 +15,6 @@ WORKDIR /usr/src/myapp
 COPY . /usr/src/myapp
 
 # Run the script when the container launches
-ENTRYPOINT ["php", "analyseur.php"]
+ENTRYPOINT ["php", "test.php"]
 CMD ["http://example.com"] # Default URL if none is provided
 

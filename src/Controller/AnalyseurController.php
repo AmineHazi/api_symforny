@@ -15,9 +15,9 @@ class AnalyseurController extends AbstractController
 {
     
     private function add_http($url) {
-        if (strpos($url, '://') === false) {
-            $url = 'http://' . $url;
-        }
+        // if (strpos($url, '://') === false) {
+        //     $url = 'http://' . $url;
+        // }
         return $url;
     }
 
@@ -52,23 +52,49 @@ class AnalyseurController extends AbstractController
     {
         $links = $analyse->getLinksToAnalyse();
         $workers_running = $analyse->getDockerNb();
+        $links_to_delete = array();
         if (count($links) > 0 && $workers_running < 5) {
             // Launch up to 5 workers simultaneously
+            $myfile= fopen("testfile.txt", "a");
+            fwrite($myfile,"\r\n------------LIENS QUI VONT ETRE ANALYSES-----------------\r\n");
+            fwrite($myfile,print_r(array_slice($links, 0, 5 - $workers_running)));
+            fwrite($myfile,"\r\n-----------------------------\r\n");
+            fwrite($myfile,"\r\n------------LIENS QUI VONT ETRE ANALYSES-----------------\r\n");
+            fclose($myfile);
+
+
             foreach (array_slice($links, 0, 5 - $workers_running) as $link) {
                 $command = "docker run --network=host php-url-analyser " . escapeshellarg($link) . " > /dev/null 2>&1 &";
                 shell_exec($command);
                 $workers_running++;
+
+                $links_to_delete[] = $link;
 
                 // Add the link to the analysed links
                 $analysed_links = $analyse->getAnalysedLinks();
                 $analyse->setAnalysedLinks(array_merge($analysed_links, [$link]));
                 $analyse->setDockerNb($workers_running);
             }
+            // // Remove links that have been handed off to workers that are in the links_to_delete array
+            foreach ($links as $key => $string) {
+                // Check if the string is present in $links_to_delete
+                if (in_array($string, $links_to_delete)) {
+                    // Remove the string from $links
+                    unset($links[$key]);
+                }
+            }
+            //$analyse->setLinksToAnalyse($links);
+
+            //**********************************
+        $myfile = fopen("testfile.txt", "a");
+
+        fwrite($myfile,"\r\n------------LIENS A SUPP-----------------\r\n");
+        fwrite($myfile,implode($links_to_delete));
+        fwrite($myfile,"\r\n-----------------------------\r\n");
+        fclose($myfile);
+        //***
             
             $analyse->setLinksToAnalyse($links);
-            // // Remove links that have been handed off to workers
-            $remaining_links = array_slice($links, 5 - $workers_running);
-            $analyse->setLinksToAnalyse($remaining_links);
             $em->flush();
         }
     }
@@ -95,17 +121,25 @@ class AnalyseurController extends AbstractController
         // décrementer le nombre de workers en cours
         $analyse->setDockerNb($workers_running - 1);
 
-        // récupère la prof du lien analysé 
+        // récupère la profondeur du lien analysé 
         $current_depth = $content['resultats']['depth'];
     
         // les liens internes trouvés dans la page
         $new_links = $content['resultats']['internalLinks'] ?? [];
-        $logger->error(implode(", ", $new_links));
         // Recupère de la bdd les liens déjà trouvés (TOUS LES LIENS)
         $all_found_links = $analyse->getLinksFound() ?? [];
 
         // on rajoute les liens trouver au liens déjà existant dans la bdd
         $updated_found_links = array_unique(array_merge($all_found_links, $new_links));
+        //**********************************
+        $myfile = fopen("testfile.txt", "a");
+        fwrite($myfile,"\r\nLIENS TROUVES DANS LA PAGE\r\n");
+
+        fwrite($myfile,implode($new_links));
+        fwrite($myfile,"\r\n-----------------------------\r\n");
+        fclose($myfile);
+        //**********************************
+
         $analyse->setLinksFound($updated_found_links);
         
         // récupérer les images et additionner les nouvelles imgs trouvées
@@ -138,11 +172,11 @@ class AnalyseurController extends AbstractController
 
         $logger->error($current_depth);
         $logger->error($analyse->getDepth());
-        if($current_depth <= $analyse->getDepth()){
+        $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $links_found_to_be_analysed));
+        if($current_depth < $analyse->getDepth()){
             
             // Accumulate links and other results
             
-            $updated_links_to_analyse = array_unique(array_merge($to_be_analysed_links, $links_found_to_be_analysed));
             $analyse->setLinksToAnalyse($updated_links_to_analyse);
         }
         
@@ -150,7 +184,7 @@ class AnalyseurController extends AbstractController
 
 
         // Check if more links to process or if depth limit reached
-        if (count($updated_links_to_analyse) > 0) {
+        if (count($updated_links_to_analyse) > 0 && $current_depth < $analyse->getDepth()) {
             $this->launchWorkers($analyse, $em);
         } else {
             $analyse->setAnalyseEnCours(false);

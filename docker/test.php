@@ -54,8 +54,13 @@ function getLinks($url) {
     $xpath = new DOMXPath($dom);
 
     $base = parse_url($url, PHP_URL_HOST);
-    $scheme = parse_url($url, PHP_URL_SCHEME);
-    $baseUrl = $scheme . '://' . $base;
+    $baseUrl = parse_url($url, PHP_URL_SCHEME) . '://' . $base;
+    // echo une grand ligne pour délimiter
+    echo("------------------------------------------------\r\n");
+    echo("Base URL: " . $baseUrl . "\r\n");
+    echo("Base: " . $base . "\r\n");
+    echo("URL: " . $url . "\r\n");
+    echo("------------------------------------------------\r\n");
 
     $internalLinks = [];
     $externalLinks = [];
@@ -63,32 +68,59 @@ function getLinks($url) {
 
     $hrefs = $xpath->query("//a[@href]");
     foreach ($hrefs as $href) {
-    $hrefValue = $href->getAttribute('href');
+        
+        $hrefValue = $href->getAttribute('href');
+    echo("****************************\r\n");
+        echo("hrefValue avant: " . $hrefValue . "\r\n");
+        $hrefValue = rtrim($hrefValue, '/'); // Remove trailing slash
+        $hrefValue = strtok($hrefValue, '?'); // Remove query parameters
+        echo("hrefValue après: " . $hrefValue . "\r\n");
+        
+        if($hrefValue == ''){
+            continue;
+        }
+    
+        if (strpos($hrefValue, '#') !== false) {
+            continue;
+        }
+    
+        // Check if the URL is complete
+        if (filter_var($hrefValue, FILTER_VALIDATE_URL)) {
+            $hrefDomain = parse_url($hrefValue, PHP_URL_HOST);
+            $hrefValue = preg_replace("~^(?:f|ht)tps?://~i", "", $hrefValue); // Remove http:// or https://
+            echo("hrefValue après http removal: " . $hrefValue . "\r\n");
+            if($hrefValue === $base){
+                continue;
+            }
+            if (strpos($hrefDomain, $base) !== false) {
+                echo("oui\r\n");
+                $internalLinks[] = $hrefValue; // Complete internal URL
+            } else {
+                echo("non\r\n");
 
-        // Vérifiez si l'URL est complète
-    if (filter_var($hrefValue, FILTER_VALIDATE_URL)) {
-        $hrefDomain = parse_url($hrefValue, PHP_URL_HOST);
-        if (strpos($hrefDomain, $base) !== false) {
-            $internalLinks[] = $hrefValue;  // URL interne complète
+                $externalLinks[] = $hrefValue; // Complete external URL
+            }
         } else {
-            $externalLinks[] = $hrefValue;  // URL externe complète
+            // Treat as a relative URL and add to the base URL
+            echo("CHOUF HNA:".$hrefValue ."\r\n");
+            if($hrefValue == ''){
+                continue;
+            }
+            $tnak = rtrim($baseUrl, '/') . '/' . ltrim($hrefValue, '/');
+            echo("Si relatif:".$tnak ."\r\n");
+            $internalLinks[] = $tnak;
         }
-    } else {
-            // Traitez comme une URL relative et ajoutez à l'URL de base
-            $internalLinks[] = rtrim($baseUrl, '/') . '/' . ltrim($hrefValue, '/');
-        }
+        echo("****************************\r\n");
+
     }
+    
 
     $srcs = $xpath->query("//img[@src]");
     foreach ($srcs as $src) {
         $srcValue = $src->getAttribute('src');
-        if (filter_var($srcValue, FILTER_VALIDATE_URL)) {
-            $images[] = $srcValue;
-        } else {
-            $images[] = rtrim($baseUrl, '/') . '/' . ltrim($srcValue, '/');
-        }
+        $images[] = rtrim($baseUrl, '/') . '/' . ltrim($srcValue, '/');
     }
-
+    print_r($internalLinks);
     return [
         'internalLinks' => array_unique($internalLinks),
         'externalLinks' => array_unique($externalLinks),
@@ -100,8 +132,19 @@ function getLinks($url) {
 function depth_zero($url) {
     $info = get_url_info($url);
     $linksImages = getLinks($url);
-    
-	
+    $url = preg_replace("~^(?:f|ht)tps?://~i", "", $url);
+    if (strpos($url, 'www.') === false) {
+        $url = 'www.' . $url;
+    }
+
+    $key = array_search($url, $linksImages['internalLinks']);
+
+    // Check if the URL exists in the array
+    if ($key !== false) {
+        // Remove the URL from the array
+        unset($linksImages['internalLinks'][$key]);
+    }
+	// pas de http/s dans les liens
     return [
         'url' => $url,
         'depth' => $info['depth'],
@@ -112,7 +155,6 @@ function depth_zero($url) {
         'images' => $linksImages['images'],
     ];
 }
-
 // Fonction principale pour analyser une URL et afficher le résultat en JSON
 function analyse_simple($url) {
 	$url = add_http($url);
@@ -120,6 +162,7 @@ function analyse_simple($url) {
 
 	// L'URL de votre API Symfony qui reçoit les résultats
 	$urlApiSymfony = 'http://127.0.0.1:8000/resultat';
+
 
 	// Préparer les données à envoyer
 	$donnees = json_encode(['resultats' => $resultat]);
@@ -140,7 +183,7 @@ function analyse_simple($url) {
 	curl_close($ch);
 
 	// Afficher la réponse (pour débogage)
-	echo $response;
+	echo $donnees;
 
 }
 
