@@ -75,7 +75,7 @@ class AnalyseurController extends AbstractController
 
 
             foreach (array_slice($links, 0, 5 - $workers_running) as $link) {
-                $command = "docker run --network=host php-url-analyser " . escapeshellarg($link) . " > /dev/null 2>&1 &";
+                $command = "docker run --network=host rachid " . escapeshellarg($link) . " > /dev/null 2>&1 &";
                 shell_exec($command);
                 $workers_running++;
 

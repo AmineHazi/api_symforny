@@ -1,3 +1,3 @@
 ## START SERVER WITH "symfony server:start"
 
-docker build -t php-url-analyser .
+docker build -t rachid .
