@@ -56,11 +56,6 @@ function getLinks($url) {
     $base = parse_url($url, PHP_URL_HOST);
     $baseUrl = parse_url($url, PHP_URL_SCHEME) . '://' . $base;
     // echo une grand ligne pour délimiter
-    echo("------------------------------------------------\r\n");
-    echo("Base URL: " . $baseUrl . "\r\n");
-    echo("Base: " . $base . "\r\n");
-    echo("URL: " . $url . "\r\n");
-    echo("------------------------------------------------\r\n");
 
     $internalLinks = [];
     $externalLinks = [];
@@ -70,11 +65,8 @@ function getLinks($url) {
     foreach ($hrefs as $href) {
         
         $hrefValue = $href->getAttribute('href');
-    echo("****************************\r\n");
-        echo("hrefValue avant: " . $hrefValue . "\r\n");
         $hrefValue = rtrim($hrefValue, '/'); // Remove trailing slash
         $hrefValue = strtok($hrefValue, '?'); // Remove query parameters
-        echo("hrefValue après: " . $hrefValue . "\r\n");
         
         if($hrefValue == ''){
             continue;
@@ -88,30 +80,20 @@ function getLinks($url) {
         if (filter_var($hrefValue, FILTER_VALIDATE_URL)) {
             $hrefDomain = parse_url($hrefValue, PHP_URL_HOST);
             $hrefValue = preg_replace("~^(?:f|ht)tps?://~i", "", $hrefValue); // Remove http:// or https://
-            echo("hrefValue après http removal: " . $hrefValue . "\r\n");
             if($hrefValue === $base){
                 continue;
             }
             if (strpos($hrefDomain, $base) !== false) {
-                echo("oui\r\n");
                 $internalLinks[] = $hrefValue; // Complete internal URL
             } else {
-                echo("non\r\n");
-
                 $externalLinks[] = $hrefValue; // Complete external URL
             }
         } else {
             // Treat as a relative URL and add to the base URL
-            echo("CHOUF HNA:".$hrefValue ."\r\n");
             if($hrefValue == ''){
                 continue;
             }
-            $tnak = rtrim($baseUrl, '/') . '/' . ltrim($hrefValue, '/');
-            echo("Si relatif:".$tnak ."\r\n");
-            $internalLinks[] = $tnak;
         }
-        echo("****************************\r\n");
-
     }
     
 
@@ -161,7 +143,7 @@ function analyse_simple($url) {
 	$resultat = depth_zero($url);
 
 	// L'URL de votre API Symfony qui reçoit les résultats
-	$urlApiSymfony = 'http://127.0.0.1:8000/resultat';
+	$urlApiSymfony = 'http://127.0.0.1:8001/resultat';
 
 
 	// Préparer les données à envoyer
