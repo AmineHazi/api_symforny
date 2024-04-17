@@ -214,12 +214,14 @@ class AnalyseurController extends AbstractController
         $analyse = $em->getRepository(AnalyseResult::class)->findOneBy(['analyse_en_cours' => false]);
     
         if (!$analyse) {
-            return $this->json(['message' => 'Analysis is still processing or no analysis has been initiated.']);
+            return $this->json(['scanstate' => 0 ,'message' => 'Analysis is still processing or no analysis has been initiated.']);
         }
-    
+
+        // add scanid
         $result = [
+            'scanstate'=> 1,
             'url' => $analyse->getUrl(),
-            'links_nbr' => count($analyse->getLinksFound()),
+            'links_nbr' => $analyse->getLinksNbr(),
             'links_found' => $analyse->getLinksFound(),
             'images_nbr' => $analyse->getImagesNbr(),
             'total_time' => $analyse->getTotalTime()->format('H:i:s'),
